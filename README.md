@@ -1,56 +1,63 @@
-
 # Zero-Defect Credit Risk Pipeline
 
-This project focuses on building a credit risk pipeline that does more than train a predictive model. The main objective is to design a workflow that checks data quality, validates transformations, evaluates model reliability, and detects distribution changes over time.
+This project aims to build a robust credit risk pipeline that integrates data quality validation at every stage of the machine learning lifecycle.
 
-The project is based on the Home Credit dataset and is organized around the idea that a machine learning system should be monitored and challenged at every stage of the data lifecycle, not only at prediction time.
+## Objective
 
-## Project goal
+The goal is to design a system capable of detecting issues across:
 
-The goal is to develop a robust credit scoring pipeline capable of identifying weaknesses before, during, and after modeling. The project includes:
-
-- data quality profiling
-- schema validation
-- outlier detection
-- feature engineering checks
-- leakage prevention
-- model validation with appropriate business-oriented metrics
-- fairness analysis
-- drift detection and monitoring
-
-Rather than focusing only on model accuracy, this project emphasizes trust, reproducibility, and quality control.
+* Data quality (missing values, outliers, schema validation)
+* Feature engineering and data leakage
+* Model performance and robustness
+* Fairness across different groups
+* Data drift after deployment
 
 ## Dataset
 
-The work uses the Home Credit dataset, which contains a main application table and several related tables describing historical credit behavior, previous applications, installments, and account balances.
+The project is based on the Home Credit dataset, including:
 
-Main files used in the project include:
+* application_train.csv
+* application_test.csv
+* bureau.csv
+* previous_application.csv
+* installments_payments.csv
+* credit_card_balance.csv
 
-- `application_train.csv`
-- `application_test.csv`
-- `bureau.csv`
-- `bureau_balance.csv`
-- `previous_application.csv`
-- `installments_payments.csv`
-- `credit_card_balance.csv`
-- `POS_CASH_balance.csv`
-- `HomeCredit_columns_description.csv`
+## Tech Stack
 
-The first stage of the project starts with the main application dataset before progressively integrating additional relational tables for feature enrichment.
+* Python
+* Pandas, NumPy
+* Scikit-learn
+* Pandera
+* Fairlearn
+* Matplotlib / Seaborn
+* Poetry
 
-## Project structure
+## Project Structure
 
-```text
-zero-defect-credit-risk-pipeline/
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   └── drift/
-├── notebooks/
-├── src/
-├── tests/
-├── configs/
-├── reports/
-├── pyproject.toml
-├── poetry.lock
-└── README.md
+```
+data/
+notebooks/
+src/
+tests/
+configs/
+reports/
+```
+
+## Setup
+
+```bash
+poetry install
+poetry run jupyter notebook
+```
+
+## Status
+
+Project initialization completed.
+Currently working on Data Quality validation.
+
+## Team
+
+* Yazid Aloui
+* Malik
+* Radouane
