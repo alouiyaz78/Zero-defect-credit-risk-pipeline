@@ -1,0 +1,88 @@
+dataset: application_train
+
+metadata:
+  description: "Règles de validation qualité pour le dataset principal"
+  primary_key: "SK_ID_CURR"
+
+columns:
+  SK_ID_CURR:
+    type: integer
+    nullable: false
+    unique: true
+
+  TARGET:
+    type: integer
+    nullable: false
+    allowed_values: [0, 1]
+
+  CNT_CHILDREN:
+    type: float
+    nullable: true
+    min: 0
+    max: 20
+
+  AMT_INCOME_TOTAL:
+    type: float
+    nullable: false
+    min: 0
+    max: 100000000
+
+  AMT_CREDIT:
+    type: float
+    nullable: false
+    min: 0
+    max: 100000000
+
+  AMT_ANNUITY:
+    type: float
+    nullable: true
+    min: 0
+    max: 10000000
+
+  AMT_GOODS_PRICE:
+    type: float
+    nullable: true
+    min: 0
+    max: 100000000
+
+  DAYS_BIRTH:
+    type: integer
+    nullable: false
+    max: -1
+
+  DAYS_EMPLOYED:
+    type: integer
+    nullable: false
+    allowed_special_values: [365243]
+    rule: "value <= 0 or value == 365243"
+
+  CODE_GENDER:
+    type: string
+    nullable: false
+    allowed_values: ["M", "F", "XNA"]
+
+  FLAG_OWN_CAR:
+    type: string
+    nullable: false
+    allowed_values: ["Y", "N"]
+
+  FLAG_OWN_REALTY:
+    type: string
+    nullable: false
+    allowed_values: ["Y", "N"]
+
+  NAME_CONTRACT_TYPE:
+    type: string
+    nullable: false
+    allowed_values: ["Cash loans", "Revolving loans"]
+
+derived_rules:
+  - name: age_years_valid
+    description: "L'âge calculé à partir de DAYS_BIRTH doit être compris entre 18 et 100 ans"
+    formula: "AGE_YEARS = -DAYS_BIRTH / 365.25"
+    min: 18
+    max: 100
+
+  - name: annuity_credit_consistency
+    description: "L'annuité ne doit pas dépasser le montant du crédit"
+    rule: "AMT_ANNUITY <= AMT_CREDIT when AMT_ANNUITY is not null"
