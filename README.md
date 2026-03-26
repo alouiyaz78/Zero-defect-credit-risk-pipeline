@@ -7,6 +7,8 @@
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 ## 🌟 Aperçu
+![Dashboard Screenshot](screenshots/dashboard.png)
+
 Ce projet implémente un pipeline **MLOps de bout en bout** pour le scoring de crédit. L'approche **"Zéro Défaut"** ne se contente pas de prédire : elle garantit la fiabilité du système à chaque étape, de l'ingestion des données à la surveillance en production.
 
 👉 **[Accéder au Dashboard Live](https://zero-defect-credit-risk-pipeline-fxqrngtu5bmqpctnghwnqn.streamlit.app/)**
