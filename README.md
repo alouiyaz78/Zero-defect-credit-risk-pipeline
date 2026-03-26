@@ -1,13 +1,13 @@
 # 💳 Zero-Defect Credit Risk Pipeline
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge.svg)](https://zero-defect-credit-risk-pipeline-fxqrngtu5bmqpctnghwnqn.streamlit.app/)
+
 
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
 ![MLOps Status](https://img.shields.io/badge/MLOps-Production--Ready-brightgreen.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 ## 🌟 Aperçu
-![Dashboard Screenshot](screenshots/dashboard.png)
+
 
 Ce projet implémente un pipeline **MLOps de bout en bout** pour le scoring de crédit. L'approche **"Zéro Défaut"** ne se contente pas de prédire : elle garantit la fiabilité du système à chaque étape, de l'ingestion des données à la surveillance en production.
 
