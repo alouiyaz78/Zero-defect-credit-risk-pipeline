@@ -9,7 +9,13 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Data files
-*.csv
+# On ignore TOUS les fichiers dans data/
+data/
 
+# SAUF ces fichiers précis dont le dashboard a besoin
+!data/processed/fairness_summary.csv
+!data/processed/metrics_summary.csv
+!data/processed/test_sample_dashboard.csv
+!data/processed/train_final_aggregated.parquet
 # Optional
 .env
