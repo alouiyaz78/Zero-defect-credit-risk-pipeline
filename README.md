@@ -1,63 +1,59 @@
 # Zero-Defect Credit Risk Pipeline
 
-This project aims to build a robust credit risk pipeline that integrates data quality validation at every stage of the machine learning lifecycle.
+## Description
+Ce projet implémente un pipeline MLOps complet pour le scoring de crédit. L'approche **"Zéro Défaut"** garantit la fiabilité du système grâce à une validation stricte de la qualité des données (Data QC), une optimisation basée sur les coûts financiers réels et une surveillance continue de l'équité (Fairness) et de la dérive (Drift).
 
-## Objective
+## Objectifs du Projet
+* **Validation Qualité :** Détection automatique des anomalies via Pandera et fichiers de configuration YAML.
+* **Optimisation Mémoire :** Gestion "Memory Safe" pour le traitement de datasets volumineux sans crash RAM.
+* **Performance Métier :** Optimisation du seuil de décision (0.44) pour minimiser la perte financière (Pénalité FN=10, FP=1).
+* **Éthique & Monitoring :** Analyse de l'équité par tranches d'âge et détection du Data Drift avec Evidently AI.
 
-The goal is to design a system capable of detecting issues across:
+## Structure du Projet
+* **`PIPELINE_MASTER.ipynb`** : Notebook central orchestrant tout le flux (Qualité -> Engineering -> Modèle -> Drift).
+* **`app_fairness.py`** : Dashboard Streamlit interactif incluant le simulateur de risque et l'analyse d'équité.
+* **`application_quality.yaml`** : Configuration technique des tests de qualité (Contrat de données).
+* **`pandera_schemas.py`** : Scripts de validation automatisée des schémas.
+* **`models/`** : Répertoire du modèle final exporté (`xgboost_baseline.pkl`).
+* **`notebooks/archives/`** : Historique complet des étapes de recherche et développement.
 
-* Data quality (missing values, outliers, schema validation)
-* Feature engineering and data leakage
-* Model performance and robustness
-* Fairness across different groups
-* Data drift after deployment
+## Stack Technique
+* **Langage :** Python 3.11
+* **Data & Validation :** Pandas, NumPy, Pandera
+* **Machine Learning :** Scikit-learn, XGBoost, SHAP
+* **MLOps :** Evidently AI, Fairlearn
+* **Interface & Déploiement :** Streamlit, Poetry, Docker
 
-## Dataset
+## Installation et Utilisation
 
-The project is based on the Home Credit dataset, including:
-
-* application_train.csv
-* application_test.csv
-* bureau.csv
-* previous_application.csv
-* installments_payments.csv
-* credit_card_balance.csv
-
-## Tech Stack
-
-* Python
-* Pandas, NumPy
-* Scikit-learn
-* Pandera
-* Fairlearn
-* Matplotlib / Seaborn
-* Poetry
-
-## Project Structure
-
-```
-data/
-notebooks/
-src/
-tests/
-configs/
-reports/
-```
-
-## Setup
-
+### 1. Installation des dépendances
+Assurez-vous d'avoir Poetry installé, puis lancez la commande suivante à la racine :
 ```bash
 poetry install
-poetry run jupyter notebook
-```
+2. Lancement du Dashboard Streamlit
+Pour accéder à l'interface interactive (Simulateur, Business Metrics et Fairness) :
 
-## Status
+Bash
+poetry run streamlit run app_fairness.py
+3. Exécution du Pipeline Master
+Le notebook principal peut être ouvert pour reproduire l'intégralité du pipeline de données :
 
-Project initialization completed.
-Currently working on Data Quality validation.
+Bash
+poetry run jupyter notebook PIPELINE_MASTER.ipynb
+Déploiement via Docker
 
-## Team
+1. Construction de l'image Docker
+Bash
+docker build -t credit-scoring-app .
+2. Lancement du conteneur
+Bash
+docker run -p 8501:8501 credit-scoring-app
+L'application sera ensuite accessible sur votre navigateur à l'adresse : http://localhost:8501
 
-* Yazid Aloui
-* Malik
-* Radouane
+Équipe
+
+Yazid 
+
+Malik
+
+Radouane
