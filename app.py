@@ -23,13 +23,11 @@ def load_model():
 def load_data():
     return pd.read_csv(Path("data/processed/test_sample_dashboard.csv"))
 
-
 def build_age_group(days_birth_series: pd.Series) -> pd.Series:
     age_years = (-days_birth_series / 365.25).round(0)
     bins = [0, 30, 40, 50, 60, 120]
     labels = ['<=30', '31-40', '41-50', '51-60', '60+']
     return pd.cut(age_years, bins=bins, labels=labels, include_lowest=True)
-
 
 def fairness_by_group(df_features: pd.DataFrame, y_true: pd.Series, y_pred: np.ndarray, group_col: str) -> pd.DataFrame:
     tmp = df_features.copy()
@@ -59,10 +57,9 @@ def fairness_by_group(df_features: pd.DataFrame, y_true: pd.Series, y_pred: np.n
             'ecart_acceptation_vs_global': acceptance_rate - global_acceptance,
         })
 
-    report = pd.DataFrame(rows).sort_values('effectif', ascending=False)
-    return report
+    return pd.DataFrame(rows).sort_values('effectif', ascending=False)
 
-
+# Chargement initial
 model = load_model()
 df = load_data()
 
@@ -71,7 +68,7 @@ y_true = df['TARGET']
 y_probs = model.predict_proba(X)[:, 1]
 
 # ==========================================
-# 2. INTERFACE UTILISATEUR (BARRE LATÉRALE GLOBALE)
+# 2. INTERFACE UTILISATEUR (SYCHRONISATION SLIDER/INPUT)
 # ==========================================
 st.sidebar.title("🏦 Réglages MLOps")
 st.sidebar.markdown("Ajustez le niveau de sévérité de l'algorithme.")
@@ -79,33 +76,23 @@ st.sidebar.markdown("Ajustez le niveau de sévérité de l'algorithme.")
 if 'seuil' not in st.session_state:
     st.session_state.seuil = 0.44
 
-
-def update_slider():
+# Fonctions de synchronisation pour éviter les lags
+def sync_input():
     st.session_state.seuil = st.session_state.champ_saisie
 
-
-def update_champ():
+def sync_slider():
     st.session_state.seuil = st.session_state.curseur
-
 
 st.sidebar.number_input(
     "Saisie précise du seuil",
-    min_value=0.01,
-    max_value=0.99,
-    value=st.session_state.seuil,
-    step=0.01,
-    key="champ_saisie",
-    on_change=update_slider,
+    min_value=0.01, max_value=0.99, value=st.session_state.seuil,
+    step=0.01, key="champ_saisie", on_change=sync_input
 )
 
 st.sidebar.slider(
     "Ajustement rapide",
-    min_value=0.01,
-    max_value=0.99,
-    value=st.session_state.seuil,
-    step=0.01,
-    key="curseur",
-    on_change=update_champ,
+    min_value=0.01, max_value=0.99, value=st.session_state.seuil,
+    step=0.01, key="curseur", on_change=sync_slider
 )
 
 threshold = st.session_state.seuil
@@ -122,25 +109,18 @@ available_groups = [
 ]
 
 # ==========================================
-# 3. CRÉATION DES ONGLETS PRINCIPAUX
+# 3. CRÉATION DES ONGLETS
 # ==========================================
 st.title("Tableau de Bord : Octroi de Crédit")
 
 tab_macro, tab_equite, tab_micro = st.tabs([
-    "📊 Vue Macro (Simulateur Financier)",
-    "⚖️ Vue Équité",
-    "🔍 Vue Micro (Explicabilité Client)",
+    "📊 Vue Macro (Finance)", "⚖️ Vue Équité", "🔍 Vue Micro (Explicabilité)"
 ])
 
-# ==========================================
-# ONGLET 1 : LA VUE AGENCE (FINANCES ET VOLUMES)
-# ==========================================
+# ONGLET 1 : MACRO
 with tab_macro:
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred_custom, labels=[0, 1]).ravel()
-    gains_interets_tn = tn * (MONTANT_PRET_MOYEN * MARGE_BENEFICIAIRE)
-    perte_totale_fn = fn * MONTANT_PRET_MOYEN
-    manque_a_gagner_fp = fp * (MONTANT_PRET_MOYEN * MARGE_BENEFICIAIRE)
-    resultat_net = gains_interets_tn - perte_totale_fn
+    resultat_net = (tn * MONTANT_PRET_MOYEN * MARGE_BENEFICIAIRE) - (fn * MONTANT_PRET_MOYEN)
 
     if resultat_net > 0:
         st.success(f"### 📈 RÉSULTAT NET DE L'AGENCE : + {resultat_net:,.0f} €")
@@ -148,156 +128,73 @@ with tab_macro:
         st.error(f"### 📉 RÉSULTAT NET DE L'AGENCE : {resultat_net:,.0f} €")
 
     st.markdown("---")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.error(f"🚨 Capital Perdu\n\n**-{perte_totale_fn:,.0f} €**\n\n*{fn} faux négatifs*")
-    with col2:
-        st.info(f"💶 Chiffre d'Affaires\n\n**+{gains_interets_tn:,.0f} €**\n\n*{tn} vrais négatifs*")
-    with col3:
-        st.warning(f"⚠️ Manque à gagner\n\n**-{manque_a_gagner_fp:,.0f} €**\n\n*{fp} faux positifs*")
+    c1, c2, c3 = st.columns(3)
+    c1.error(f"🚨 Perte\n**-{fn*MONTANT_PRET_MOYEN:,.0f}€**")
+    c2.info(f"💶 CA\n**+{tn*MONTANT_PRET_MOYEN*MARGE_BENEFICIAIRE:,.0f}€**")
+    c3.warning(f"⚠️ Manque à gagner\n**-{fp*MONTANT_PRET_MOYEN*MARGE_BENEFICIAIRE:,.0f}€**")
 
     st.markdown("---")
-    col_graphe, col_matrice = st.columns(2)
-    with col_graphe:
-        st.subheader("⚖️ Volumes de Décision")
-        df_volumes = pd.DataFrame({
-            "Statut": ["Accordés", "Refusés"],
-            "Volume": [tn + fn, tp + fp],
-        }).set_index("Statut")
-        st.bar_chart(df_volumes)
-        st.caption(f"**Taux d'acceptation :** {((tn + fn) / len(y_true) * 100):.1f} %")
-
-    with col_matrice:
+    cg, cm = st.columns(2)
+    with cg:
+        st.subheader("⚖️ Volumes")
+        df_vol = pd.DataFrame({"Statut": ["Accordés", "Refusés"], "Volume": [tn+fn, tp+fp]}).set_index("Statut")
+        st.bar_chart(df_vol)
+    with cm:
         st.subheader("📊 Matrice de Confusion")
         fig, ax = plt.subplots(figsize=(5, 3))
-        cm_custom = confusion_matrix(y_true, y_pred_custom)
-        sns.heatmap(
-            cm_custom,
-            annot=True,
-            fmt='d',
-            cmap='Blues',
-            cbar=False,
-            xticklabels=['Accordé', 'Refusé'],
-            yticklabels=['Solvable', 'Défaut'],
-            ax=ax,
-        )
+        sns.heatmap(confusion_matrix(y_true, y_pred_custom), annot=True, fmt='d', cmap='Blues', cbar=False, 
+                    xticklabels=['Accordé', 'Refusé'], yticklabels=['Solvable', 'Défaut'], ax=ax)
         st.pyplot(fig)
 
-# ==========================================
-# ONGLET 2 : LA VUE ÉQUITÉ
-# ==========================================
+# ONGLET 2 : ÉQUITÉ
 with tab_equite:
-    st.subheader("Analyse comparative des décisions par groupe")
-    st.markdown(
-        "Cette vue compare les décisions du modèle selon différents groupes observables. "
-        "Elle permet de repérer rapidement un écart d'acceptation ou d'erreur à surveiller."
-    )
-
     if not available_groups:
-        st.info("Aucun groupe exploitable n'a été trouvé dans l'échantillon du dashboard.")
+        st.info("Aucun groupe trouvé.")
     else:
-        selected_group = st.selectbox("Choisir un groupe à analyser", available_groups)
-        fairness_report = fairness_by_group(fairness_df, y_true, y_pred_custom, selected_group)
+        selected_group = st.selectbox("Groupe à analyser", available_groups)
+        report = fairness_by_group(fairness_df, y_true, y_pred_custom, selected_group)
+        
+        # Correction 2026 : width='stretch' au lieu de use_container_width
+        display_report = report.copy()
+        for col in report.columns:
+            if 'taux' in col or 'rate' in col or 'ecart' in col:
+                display_report[col] = (display_report[col] * 100).round(2)
+        
+        st.dataframe(display_report, width="stretch", hide_index=True)
+        st.bar_chart(report.set_index('groupe')[['taux_acceptation', 'false_positive_rate']])
 
-        global_acceptance = (y_pred_custom == 0).mean()
-        max_gap = fairness_report['ecart_acceptation_vs_global'].abs().max()
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Taux d'acceptation global", f"{global_acceptance * 100:.1f}%")
-        c2.metric("Nombre de groupes", int(len(fairness_report)))
-        c3.metric("Écart max vs global", f"{max_gap * 100:.1f} pts")
-
-        display_report = fairness_report.copy()
-        pct_cols = [
-            'taux_defaut_reel', 'taux_acceptation', 'taux_refus',
-            'false_positive_rate', 'false_negative_rate', 'ecart_acceptation_vs_global'
-        ]
-        for col in pct_cols:
-            display_report[col] = (display_report[col] * 100).round(2)
-
-        st.dataframe(
-            display_report.rename(columns={
-                'groupe': 'Groupe',
-                'effectif': 'Effectif',
-                'taux_defaut_reel': 'Taux défaut réel (%)',
-                'taux_acceptation': 'Taux acceptation (%)',
-                'taux_refus': 'Taux refus (%)',
-                'false_positive_rate': 'FPR (%)',
-                'false_negative_rate': 'FNR (%)',
-                'ecart_acceptation_vs_global': 'Écart acceptation vs global (pts)',
-            }),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-        chart_df = fairness_report.set_index('groupe')[['taux_acceptation', 'false_positive_rate', 'false_negative_rate']]
-        st.bar_chart(chart_df)
-
-        st.caption(
-            "Lecture rapide : un écart fort de taux d'acceptation ou d'erreurs entre groupes "
-            "ne prouve pas à lui seul une discrimination, mais constitue un signal d'alerte."
-        )
-
-# ==========================================
-# ONGLET 3 : LA VUE CLIENT (SHAP)
-# ==========================================
+# ONGLET 3 : MICRO (SHAP)
 with tab_micro:
-    st.subheader("Moteur d'explicabilité des décisions algorithmiques")
-    st.markdown("Sélectionnez un dossier spécifique pour justifier le choix de l'IA.")
+    st.subheader("🔍 Explication par dossier")
+    
+    # Filtrage optimisé pour la fluidité
+    filtre = st.radio("Dossiers :", ["🔴 Refusés", "🟢 Accordés", "⚪ Tous"], horizontal=True)
+    if "Refusés" in filtre: ids = np.where(y_pred_custom == 1)[0]
+    elif "Accordés" in filtre: ids = np.where(y_pred_custom == 0)[0]
+    else: ids = np.arange(len(y_pred_custom))
 
-    col_filtre, col_client = st.columns(2)
-    with col_filtre:
-        filtre_statut = st.radio(
-            "Filtrer les dossiers :",
-            ["🔴 Seulement les Refusés", "🟢 Seulement les Accordés", "⚪ Tous"],
-        )
+    client_id = st.selectbox(f"Dossier ({len(ids)} filtrés) :", ids, format_func=lambda x: f"Client N° {x}")
 
-    if "Refusés" in filtre_statut:
-        dossiers_disponibles = np.where(y_pred_custom == 1)[0]
-    elif "Accordés" in filtre_statut:
-        dossiers_disponibles = np.where(y_pred_custom == 0)[0]
-    else:
-        dossiers_disponibles = np.arange(len(y_pred_custom))
-
-    with col_client:
-        client_choisi = st.selectbox(
-            f"Dossiers ({len(dossiers_disponibles)} filtrés) :",
-            dossiers_disponibles,
-            format_func=lambda x: f"Dossier N° {x}",
-        )
-
-    if st.button("📊 Générer le rapport SHAP pour ce dossier", type="primary"):
-        with st.spinner('Analyse des variables en cours...'):
+    if st.button("📊 Générer l'analyse SHAP", type="primary"):
+        with st.spinner('Analyse SHAP en cours...'):
             import shap
-
-            client_data = X.iloc[[client_choisi]]
+            # Extraction des étapes du pipeline
             preprocessor = model.named_steps['preprocessor']
-            xgb_classifier = model.named_steps['classifier']
+            classifier = model.named_steps['classifier']
+            
+            client_data = X.iloc[[client_id]]
+            client_trans = preprocessor.transform(client_data)
+            
+            # Reconstruction des noms de colonnes
+            ohe = preprocessor.named_transformers_['cat'].named_steps['onehot']
+            features = X.select_dtypes(exclude=['object']).columns.tolist() + list(ohe.get_feature_names_out())
 
-            client_transformed = preprocessor.transform(client_data)
+            explainer = shap.TreeExplainer(classifier)
+            shap_vals = explainer.shap_values(client_trans)
 
-            cat_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
-            num_cols = X.select_dtypes(exclude=['object', 'category']).columns.tolist()
-            ohe_features = preprocessor.named_transformers_['cat'].named_steps['onehot'].get_feature_names_out(cat_cols)
-            all_features = num_cols + list(ohe_features)
-
-            explainer = shap.TreeExplainer(xgb_classifier)
-            shap_values = explainer.shap_values(client_transformed)
-
-            fig_shap, ax_shap = plt.subplots(figsize=(8, 5))
-            shap_val_client = shap.Explanation(
-                values=shap_values[0],
-                base_values=explainer.expected_value,
-                data=np.round(client_transformed[0], 2),
-                feature_names=all_features,
-            )
-
-            shap.waterfall_plot(shap_val_client, max_display=10, show=False)
-            plt.tight_layout()
+            fig_shap, ax = plt.subplots(figsize=(8, 4))
+            exp = shap.Explanation(values=shap_vals[0], base_values=explainer.expected_value, 
+                                   data=np.round(client_trans[0], 2), feature_names=features)
+            shap.waterfall_plot(exp, max_display=10, show=False)
             st.pyplot(fig_shap)
-
-            proba_defaut = y_probs[client_choisi] * 100
-            st.warning(
-                f"💡 Risque de défaut de paiement estimé à **{proba_defaut:.1f}%** "
-                f"(Le seuil actuel de refus est fixé à {threshold * 100:.0f}%)."
-            )
+            st.info(f"Score de risque : **{y_probs[client_id]*100:.1f}%**")
