@@ -1,6 +1,7 @@
 # 💳 Zero-Defect Credit Risk Pipeline
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge.svg)](https://zero-defect-credit-risk-pipeline-fxqrngtu5bmqpctnghwnqn.streamlit.app/)
+
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
 ![MLOps Status](https://img.shields.io/badge/MLOps-Production--Ready-brightgreen.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
