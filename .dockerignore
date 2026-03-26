@@ -1,0 +1,9 @@
+# Ignorer les dossiers lourds ou inutiles
+data/raw/
+notebooks/archives/
+.git/
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+*.zip
+*.pdf
