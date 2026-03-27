@@ -82,7 +82,5 @@ Radouane
 
 ![Dashboard](assets/Dashborad_1_project_credit_score.png)
 
-![Dashboard](assets/Dashborad_2_project_credit_score.png)
 
-![Dashboard](assets/Dashborad_3_project_credit_score.png)
 
