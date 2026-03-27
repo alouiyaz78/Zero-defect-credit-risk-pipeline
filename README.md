@@ -126,6 +126,7 @@ poetry run streamlit run app.py
 ![Dashboard 1](assets/Dashborad_1_project_credit_score.png)
 ![Dashboard 2](assets/Dashborad_2_project_credit_score.png)
 ![Dashboard 3](assets/Dashborad_3_project_credit_score.png)
+![Dashboard 4](assets/Dashborad_4_project_credit_score.png)
 
 ---
 
