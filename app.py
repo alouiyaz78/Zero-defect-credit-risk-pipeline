@@ -19,6 +19,8 @@ st.set_page_config(
 
 MONTANT_PRET_MOYEN = 10000
 MARGE_BENEFICIAIRE = 0.10
+COUT_FN = 10
+COUT_FP = 1
 
 
 @st.cache_resource
@@ -77,6 +79,45 @@ def fairness_by_group(
     return pd.DataFrame(rows).sort_values("effectif", ascending=False)
 
 
+def business_cost(y_true, y_pred, cost_fn=COUT_FN, cost_fp=COUT_FP):
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+    return fn * cost_fn + fp * cost_fp
+
+
+def business_cost_normalized(y_true, y_pred, cost_fn=COUT_FN, cost_fp=COUT_FP):
+    return business_cost(y_true, y_pred, cost_fn, cost_fp) / len(y_true)
+
+
+def find_best_threshold(y_true, y_probs, cost_fn=COUT_FN, cost_fp=COUT_FP):
+    thresholds = np.linspace(0.10, 0.90, 81)
+
+    best_threshold = 0.50
+    best_cost = float("inf")
+    rows = []
+
+    for t in thresholds:
+        y_pred = (y_probs >= t).astype(int)
+        cost = business_cost(y_true, y_pred, cost_fn, cost_fp)
+
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+
+        rows.append({
+            "threshold": t,
+            "cost": cost,
+            "tn": tn,
+            "fp": fp,
+            "fn": fn,
+            "tp": tp,
+        })
+
+        if cost < best_cost:
+            best_cost = cost
+            best_threshold = t
+
+    curve_df = pd.DataFrame(rows)
+    return round(float(best_threshold), 2), int(best_cost), curve_df
+
+
 # Chargement initial
 model = load_model()
 df = load_data()
@@ -84,6 +125,8 @@ df = load_data()
 X = df.drop(columns=["TARGET"])
 y_true = df["TARGET"]
 y_probs = model.predict_proba(X)[:, 1]
+
+best_threshold, best_cost, threshold_curve = find_best_threshold(y_true, y_probs)
 
 # ==========================================
 # 2. SIDEBAR / RÉGLAGES
@@ -103,11 +146,21 @@ def sync_slider():
     st.session_state.seuil = st.session_state.curseur
 
 
+if st.sidebar.button("🎯 Optimiser automatiquement le seuil"):
+    st.session_state.seuil = best_threshold
+
+
+st.sidebar.metric("Seuil recommandé", f"{best_threshold:.2f}")
+st.sidebar.caption(
+    f"Coût métier minimal estimé : {best_cost:,} "
+    f"(FN×{COUT_FN} + FP×{COUT_FP})"
+)
+
 st.sidebar.number_input(
     "Saisie précise du seuil",
     min_value=0.01,
     max_value=0.99,
-    value=st.session_state.seuil,
+    value=float(st.session_state.seuil),
     step=0.01,
     key="champ_saisie",
     on_change=sync_input
@@ -117,14 +170,28 @@ st.sidebar.slider(
     "Ajustement rapide",
     min_value=0.01,
     max_value=0.99,
-    value=st.session_state.seuil,
+    value=float(st.session_state.seuil),
     step=0.01,
     key="curseur",
     on_change=sync_slider
 )
 
-threshold = st.session_state.seuil
+threshold = float(st.session_state.seuil)
 y_pred_custom = (y_probs >= threshold).astype(int)
+current_cost = business_cost(y_true, y_pred_custom)
+current_cost_norm = business_cost_normalized(y_true, y_pred_custom)
+
+st.sidebar.markdown("---")
+st.sidebar.metric("Seuil actuel", f"{threshold:.2f}")
+st.sidebar.metric("Coût actuel", f"{current_cost:,}")
+st.sidebar.metric("Coût moyen / dossier", f"{current_cost_norm:.4f}")
+
+if abs(threshold - best_threshold) < 1e-9:
+    st.sidebar.success("Le seuil actuel est déjà le seuil optimal.")
+else:
+    st.sidebar.info(
+        f"Écart vs seuil recommandé : {threshold - best_threshold:+.2f}"
+    )
 
 # Préparation équité
 fairness_df = X.copy()
@@ -173,9 +240,18 @@ if page == "📊 Vue Macro (Finance)":
 
     st.markdown("---")
     c1, c2, c3 = st.columns(3)
-    c1.error(f"🚨 Perte\n**-{fn * MONTANT_PRET_MOYEN:,.0f}€**")
-    c2.info(f"💶 CA\n**+{tn * MONTANT_PRET_MOYEN * MARGE_BENEFICIAIRE:,.0f}€**")
-    c3.warning(f"⚠️ Manque à gagner\n**-{fp * MONTANT_PRET_MOYEN * MARGE_BENEFICIAIRE:,.0f}€**")
+    c1.error(f"🚨 Perte\n**-{fn * MONTANT_PRET_MOYEN:,.0f} €**")
+    c2.info(f"💶 CA\n**+{tn * MONTANT_PRET_MOYEN * MARGE_BENEFICIAIRE:,.0f} €**")
+    c3.warning(f"⚠️ Manque à gagner\n**-{fp * MONTANT_PRET_MOYEN * MARGE_BENEFICIAIRE:,.0f} €**")
+
+    st.markdown("---")
+    st.subheader("🎯 Optimisation du seuil")
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Seuil utilisé", f"{threshold:.2f}")
+    k2.metric("Seuil recommandé", f"{best_threshold:.2f}")
+    k3.metric("Coût métier actuel", f"{current_cost:,}")
+
+    st.line_chart(threshold_curve.set_index("threshold")["cost"])
 
     st.markdown("---")
     cg, cm = st.columns(2)
