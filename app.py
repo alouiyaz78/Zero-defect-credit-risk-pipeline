@@ -19,8 +19,10 @@ st.set_page_config(
 
 MONTANT_PRET_MOYEN = 10000
 MARGE_BENEFICIAIRE = 0.10
-COUT_FN = 10
-COUT_FP = 1
+
+# Hypothèses métier FIXES du projet
+COUT_FAUX_NEGATIF = 10
+COUT_FAUX_POSITIF = 1
 
 
 @st.cache_resource
@@ -79,16 +81,32 @@ def fairness_by_group(
     return pd.DataFrame(rows).sort_values("effectif", ascending=False)
 
 
-def business_cost(y_true, y_pred, cost_fn=COUT_FN, cost_fp=COUT_FP):
+def business_cost(
+    y_true: pd.Series,
+    y_pred: np.ndarray,
+    cost_fn: int = COUT_FAUX_NEGATIF,
+    cost_fp: int = COUT_FAUX_POSITIF
+) -> int:
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
-    return fn * cost_fn + fp * cost_fp
+    return int(fn * cost_fn + fp * cost_fp)
 
 
-def business_cost_normalized(y_true, y_pred, cost_fn=COUT_FN, cost_fp=COUT_FP):
+def business_cost_normalized(
+    y_true: pd.Series,
+    y_pred: np.ndarray,
+    cost_fn: int = COUT_FAUX_NEGATIF,
+    cost_fp: int = COUT_FAUX_POSITIF
+) -> float:
     return business_cost(y_true, y_pred, cost_fn, cost_fp) / len(y_true)
 
 
-def find_best_threshold(y_true, y_probs, cost_fn=COUT_FN, cost_fp=COUT_FP):
+@st.cache_data
+def find_best_threshold(
+    y_true: pd.Series,
+    y_probs: np.ndarray,
+    cost_fn: int = COUT_FAUX_NEGATIF,
+    cost_fp: int = COUT_FAUX_POSITIF
+):
     thresholds = np.linspace(0.10, 0.90, 81)
 
     best_threshold = 0.50
@@ -102,12 +120,12 @@ def find_best_threshold(y_true, y_probs, cost_fn=COUT_FN, cost_fp=COUT_FP):
         tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
 
         rows.append({
-            "threshold": t,
+            "threshold": round(float(t), 2),
             "cost": cost,
-            "tn": tn,
-            "fp": fp,
-            "fn": fn,
-            "tp": tp,
+            "tn": int(tn),
+            "fp": int(fp),
+            "fn": int(fn),
+            "tp": int(tp),
         })
 
         if cost < best_cost:
@@ -126,71 +144,120 @@ X = df.drop(columns=["TARGET"])
 y_true = df["TARGET"]
 y_probs = model.predict_proba(X)[:, 1]
 
+# Seuil recommandé calculé à partir des coûts métier FIXES du projet
 best_threshold, best_cost, threshold_curve = find_best_threshold(y_true, y_probs)
 
 # ==========================================
-# 2. SIDEBAR / RÉGLAGES
+# 2. SIDEBAR / NAVIGATION ET RÉGLAGES
 # ==========================================
-st.sidebar.title("🏦 Réglages MLOps")
-st.sidebar.markdown("Ajustez le niveau de sévérité de l'algorithme.")
+st.sidebar.title("🏦 Navigation")
+page = st.sidebar.radio(
+    "Aller à",
+    [
+        "📊 Vue Macro (Finance)",
+        "⚖️ Vue Équité",
+        "🔍 Vue Micro (Explicabilité)",
+        "📉 Drift Monitoring",
+    ]
+)
 
+st.sidebar.markdown("---")
+st.sidebar.title("⚙️ Réglages du projet")
+
+# État initial du seuil de probabilité
 if "seuil" not in st.session_state:
     st.session_state.seuil = 0.44
 
+if "champ_saisie" not in st.session_state:
+    st.session_state.champ_saisie = 0.44
 
-def sync_input():
-    st.session_state.seuil = st.session_state.champ_saisie
-
-
-def sync_slider():
-    st.session_state.seuil = st.session_state.curseur
+if "curseur" not in st.session_state:
+    st.session_state.curseur = 0.44
 
 
-if st.sidebar.button("🎯 Optimiser automatiquement le seuil"):
-    st.session_state.seuil = best_threshold
+def apply_manual_threshold():
+    value = float(st.session_state.champ_saisie)
+    st.session_state.seuil = value
+    st.session_state.curseur = value
 
 
-st.sidebar.metric("Seuil recommandé", f"{best_threshold:.2f}")
+def apply_slider_threshold():
+    value = float(st.session_state.curseur)
+    st.session_state.seuil = value
+    st.session_state.champ_saisie = value
+
+
+def apply_best_threshold():
+    value = float(best_threshold)
+    st.session_state.seuil = value
+    st.session_state.champ_saisie = value
+    st.session_state.curseur = value
+
+
+# Bloc 1 : seuil de probabilité
+st.sidebar.markdown("## 🎯 Seuil de probabilité")
 st.sidebar.caption(
-    f"Coût métier minimal estimé : {best_cost:,} "
-    f"(FN×{COUT_FN} + FP×{COUT_FP})"
+    "Le modèle produit une probabilité de défaut. "
+    "Le seuil ci-dessous détermine à partir de quelle probabilité un dossier est classé comme risqué."
 )
 
+st.sidebar.info(
+    "Exemple : si la probabilité de défaut d'un client est 0.60 et que le seuil vaut 0.50, "
+    "le dossier sera classé en défaut / refusé."
+)
+
+st.sidebar.button(
+    "🎯 Appliquer le seuil recommandé",
+    on_click=apply_best_threshold
+)
+
+st.sidebar.metric("Seuil de probabilité recommandé", f"{best_threshold:.2f}")
+
 st.sidebar.number_input(
-    "Saisie précise du seuil",
+    "Modifier manuellement le seuil de probabilité",
     min_value=0.01,
     max_value=0.99,
-    value=float(st.session_state.seuil),
     step=0.01,
     key="champ_saisie",
-    on_change=sync_input
+    on_change=apply_manual_threshold
 )
 
 st.sidebar.slider(
-    "Ajustement rapide",
+    "Ajustement rapide du seuil de probabilité",
     min_value=0.01,
     max_value=0.99,
-    value=float(st.session_state.seuil),
     step=0.01,
     key="curseur",
-    on_change=sync_slider
+    on_change=apply_slider_threshold
 )
 
 threshold = float(st.session_state.seuil)
 y_pred_custom = (y_probs >= threshold).astype(int)
+
+# Bloc 2 : hypothèses métier fixes
 current_cost = business_cost(y_true, y_pred_custom)
 current_cost_norm = business_cost_normalized(y_true, y_pred_custom)
 
 st.sidebar.markdown("---")
-st.sidebar.metric("Seuil actuel", f"{threshold:.2f}")
-st.sidebar.metric("Coût actuel", f"{current_cost:,}")
+st.sidebar.markdown("## 💼 Hypothèses métier du projet")
+st.sidebar.caption(
+    "Ces hypothèses sont FIXES dans ce dashboard et proviennent du notebook final du projet. "
+    "Elles servent à calculer le seuil recommandé."
+)
+
+st.sidebar.write(f"**Coût d'un faux négatif (FN)** : {COUT_FAUX_NEGATIF}")
+st.sidebar.write(f"**Coût d'un faux positif (FP)** : {COUT_FAUX_POSITIF}")
+
+st.sidebar.metric("Seuil de probabilité actuel", f"{threshold:.2f}")
+st.sidebar.metric("Coût métier actuel", f"{current_cost:,}")
+st.sidebar.metric("Coût métier minimal estimé", f"{best_cost:,}")
 st.sidebar.metric("Coût moyen / dossier", f"{current_cost_norm:.4f}")
 
 if abs(threshold - best_threshold) < 1e-9:
-    st.sidebar.success("Le seuil actuel est déjà le seuil optimal.")
+    st.sidebar.success("Le seuil de probabilité actuel est déjà le seuil recommandé.")
 else:
     st.sidebar.info(
-        f"Écart vs seuil recommandé : {threshold - best_threshold:+.2f}"
+        f"Écart entre seuil actuel et seuil recommandé : {threshold - best_threshold:+.2f}"
     )
 
 # Préparation équité
@@ -208,16 +275,6 @@ available_groups = [
     if col in fairness_df.columns and fairness_df[col].nunique(dropna=True) > 1
 ]
 
-page = st.sidebar.radio(
-    "📌 Navigation",
-    [
-        "📊 Vue Macro (Finance)",
-        "⚖️ Vue Équité",
-        "🔍 Vue Micro (Explicabilité)",
-        "📉 Drift Monitoring",
-    ]
-)
-
 # ==========================================
 # 3. TITRE PRINCIPAL
 # ==========================================
@@ -228,6 +285,7 @@ st.title("Tableau de Bord : Octroi de Crédit")
 # ==========================================
 if page == "📊 Vue Macro (Finance)":
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred_custom, labels=[0, 1]).ravel()
+
     resultat_net = (
         (tn * MONTANT_PRET_MOYEN * MARGE_BENEFICIAIRE)
         - (fn * MONTANT_PRET_MOYEN)
@@ -239,21 +297,29 @@ if page == "📊 Vue Macro (Finance)":
         st.error(f"### 📉 RÉSULTAT NET DE L'AGENCE : {resultat_net:,.0f} €")
 
     st.markdown("---")
+
     c1, c2, c3 = st.columns(3)
     c1.error(f"🚨 Perte\n**-{fn * MONTANT_PRET_MOYEN:,.0f} €**")
     c2.info(f"💶 CA\n**+{tn * MONTANT_PRET_MOYEN * MARGE_BENEFICIAIRE:,.0f} €**")
     c3.warning(f"⚠️ Manque à gagner\n**-{fp * MONTANT_PRET_MOYEN * MARGE_BENEFICIAIRE:,.0f} €**")
 
     st.markdown("---")
-    st.subheader("🎯 Optimisation du seuil")
+    st.subheader("🎯 Lecture du seuil de probabilité")
+
     k1, k2, k3 = st.columns(3)
     k1.metric("Seuil utilisé", f"{threshold:.2f}")
     k2.metric("Seuil recommandé", f"{best_threshold:.2f}")
     k3.metric("Coût métier actuel", f"{current_cost:,}")
 
+    st.caption(
+        "La courbe ci-dessous montre comment le coût métier évolue selon le seuil de probabilité choisi. "
+        "Le seuil recommandé est celui qui minimise ce coût métier, selon les hypothèses fixes du projet."
+    )
+
     st.line_chart(threshold_curve.set_index("threshold")["cost"])
 
     st.markdown("---")
+
     cg, cm = st.columns(2)
 
     with cg:
@@ -299,7 +365,9 @@ elif page == "⚖️ Vue Équité":
                 display_report[col] = (display_report[col] * 100).round(2)
 
         st.dataframe(display_report, width="stretch", hide_index=True)
-        st.bar_chart(report.set_index("groupe")[["taux_acceptation", "false_positive_rate"]])
+        st.bar_chart(
+            report.set_index("groupe")[["taux_acceptation", "false_positive_rate"]]
+        )
 
 # ==========================================
 # 6. PAGE MICRO / SHAP
@@ -341,14 +409,19 @@ elif page == "🔍 Vue Micro (Explicabilité)":
             cat_features = list(ohe.get_feature_names_out())
             features = numeric_features + cat_features
 
+            if hasattr(client_trans, "toarray"):
+                client_trans_dense = client_trans.toarray()
+            else:
+                client_trans_dense = np.asarray(client_trans)
+
             explainer = shap.TreeExplainer(classifier)
-            shap_vals = explainer.shap_values(client_trans)
+            shap_vals = explainer.shap_values(client_trans_dense)
 
             fig_shap, ax = plt.subplots(figsize=(8, 4))
             exp = shap.Explanation(
                 values=shap_vals[0],
                 base_values=explainer.expected_value,
-                data=np.round(client_trans[0], 2),
+                data=np.round(client_trans_dense[0], 2),
                 feature_names=features
             )
             shap.waterfall_plot(exp, max_display=10, show=False)
@@ -375,7 +448,9 @@ elif page == "📉 Drift Monitoring":
 
             components.html(html_content, height=900, scrolling=True)
         else:
-            st.warning("⚠️ Rapport de drift introuvable. Lancez le pipeline pour le générer.")
+            st.warning(
+                "⚠️ Rapport de drift introuvable. Lancez le pipeline pour le générer."
+            )
 
     except Exception as e:
         st.error(f"Erreur lors du chargement du rapport de drift : {e}")
